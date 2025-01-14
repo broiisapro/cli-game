@@ -1,0 +1,724 @@
+import java.util.*;
+
+public class RPGQuizGame {
+    //all the constants are here
+    static final int MAP_SIZE = 20; // Map dimensions (20x20)
+    static final int PLAYER_START_X = 0;
+    static final int PLAYER_START_Y = 0;
+    static char[][] map;
+    static int playerX = PLAYER_START_X;
+    static int playerY = PLAYER_START_Y;
+    static int playerHealth = 100;
+    static int playerLevel = 1;
+    static int playerExp = 0;
+    static int playerCurrency = 0;
+    static String playerWeapon = "Stick";
+    static int weaponDamage = 10;
+    static Random random = new Random();
+    static String[][] easyQuestions = new String[20][5];
+    static String[][] mediumQuestions = new String[20][5];
+    static String[][] hardQuestions = new String[20][5];
+    static int questionCount; // Number of questions the user wants to answer
+    static boolean infiniteQuestions = false; // Whether the user chose infinite questions
+    static List<String[][]> selectedDifficulties = new ArrayList<>(); // Stores selected question pools
+
+    public static void main(String[] args) {
+
+        //startup sequence
+
+        //out of habit the scanner is here
+        Scanner scanner = new Scanner(System.in);
+
+        setupQuestions();
+        displayWelcome();
+        initializeGameSettings(scanner);
+        setupGame();
+
+        while (playerHealth > 0) {
+            clearScreen();
+            displayMap();
+            System.out.println("HP: " + playerHealth + " | Level: " + playerLevel + " | EXP: " + playerExp + "/100 | Currency: " + playerCurrency);
+            System.out.print("Move (WASD): ");
+            char move = scanner.next().toUpperCase().charAt(0);
+
+            if (!movePlayer(move)) {
+                System.out.println("You can't move there!");
+                // pause();
+                //continue; turns out i didnt need this continue here.
+            }
+
+            char location = map[playerX][playerY];
+            if (location == 'E') {
+                System.out.println("You've encountered an enemy!");
+                if (!battle(scanner)) {
+                    System.out.println("Game Over!");
+                    break;
+                }
+                map[playerX][playerY] = '.'; // Clear enemy after defeat
+            } else if (location == 'S') {
+                shop(scanner);
+                map[playerX][playerY] = '.'; // Clear shop after use
+            } else if (location == 'B') {
+                System.out.println("The Final Boss has appeared!");
+                if (!finalBossBattle(scanner)) {
+                    System.out.println("Game Over!");
+                    break;
+                }
+            }
+
+            checkLevelUp();
+        }
+
+        System.out.println("Thanks for playing!");
+    }
+
+    public static void initializeGameSettings(Scanner scanner) {
+        //just here because i thought that there were question limits, meant to be played with infinite questions (-1)
+        System.out.println("How many questions would you like to answer during the game? Enter -1 for infinite:");
+        questionCount = scanner.nextInt();
+        infiniteQuestions = (questionCount == -1);
+
+        //difficulty selection
+        System.out.println("Select question difficulties (E for Easy, M for Medium, H for Hard):");
+        System.out.println("Example: Enter EM for Easy and Medium, or EMH for all difficulties.");
+        String difficulties = scanner.next().toUpperCase();
+
+        //Logic for selecting difficulties
+        if (difficulties.contains("E")) selectedDifficulties.add(easyQuestions);
+        if (difficulties.contains("M")) selectedDifficulties.add(mediumQuestions);
+        if (difficulties.contains("H")) selectedDifficulties.add(hardQuestions);
+
+        //just in case someone wants to mess with it
+        if (selectedDifficulties.isEmpty()) {
+            pause();
+            selectedDifficulties.add(easyQuestions);
+        }
+    }
+
+    public static void setupGame() {
+        //creating the blank map
+        map = new char[MAP_SIZE][MAP_SIZE];
+        for (int i = 0; i < MAP_SIZE; i++) {
+            for (int j = 0; j < MAP_SIZE; j++) {
+                map[i][j] = '.';
+            }
+        }
+
+        //placing all the things on the map so that there are shops, enemies, and the final boss
+        placeEnemies();
+        placeShops();
+        placeFinalBoss();
+        map[playerX][playerY] = 'P'; 
+        // Player starts on the map
+    }
+
+    public static void setupQuestions() {
+        //easy questions
+        easyQuestions[0][0] = "What is the syntax for printing a line to the terminal window in Java?";
+        easyQuestions[0][1] = "ySystem.out.println(\"text\");";
+        easyQuestions[0][2] = "xprint(\"text\");";
+        easyQuestions[0][3] = "xconsole.log(\"text\");";
+        easyQuestions[0][4] = "xoutput(\"text\");";
+
+        easyQuestions[1][0] = "Which operator is used for addition in Java?";
+        easyQuestions[1][1] = "y+";
+        easyQuestions[1][2] = "x-";
+        easyQuestions[1][3] = "x*";
+        easyQuestions[1][4] = "x/";
+
+        easyQuestions[2][0] = "How many dimensions does a one-dimensional array have?";
+        easyQuestions[2][1] = "y1";
+        easyQuestions[2][2] = "x2";
+        easyQuestions[2][3] = "x3";
+        easyQuestions[2][4] = "xNone";
+
+        easyQuestions[3][0] = "What is the default value of a boolean array element in Java?";
+        easyQuestions[3][1] = "yfalse";
+        easyQuestions[3][2] = "xtrue";
+        easyQuestions[3][3] = "xnull";
+        easyQuestions[3][4] = "x0";
+
+        easyQuestions[4][0] = "What keyword is used to declare a method in Java?";
+        easyQuestions[4][1] = "ypublic";
+        easyQuestions[4][2] = "xmedhod";
+        easyQuestions[4][3] = "xvoid";
+        easyQuestions[4][4] = "xclass";
+
+        easyQuestions[5][0] = "Which datatype would you use to store the value true or false?";
+        easyQuestions[5][1] = "yboolean";
+        easyQuestions[5][2] = "xint";
+        easyQuestions[5][3] = "xchar";
+        easyQuestions[5][4] = "xfloat";
+
+        easyQuestions[6][0] = "What is the purpose of a switch statement?";
+        easyQuestions[6][1] = "yTo execute a block of code based on a selector value";
+        easyQuestions[6][2] = "xTo repeat a block of code";
+        easyQuestions[6][3] = "xTo check conditions";
+        easyQuestions[6][4] = "xTo define a function";
+
+        easyQuestions[7][0] = "What is the result of 14 % 3?";
+        easyQuestions[7][1] = "y2";
+        easyQuestions[7][2] = "x1";
+        easyQuestions[7][3] = "x3";
+        easyQuestions[7][4] = "x0";
+
+        easyQuestions[8][0] = "What class is used to get user input in Java";
+        easyQuestions[8][1] = "yScanner";
+        easyQuestions[8][2] = "xInputStream";
+        easyQuestions[8][3] = "xSystem";
+        easyQuestions[8][4] = "xBufferedReader";
+
+        easyQuestions[9][0] = "What is the keyword to declare a constant in Java?";
+        easyQuestions[9][1] = "yfinal";
+        easyQuestions[9][2] = "xconst";
+        easyQuestions[9][3] = "xstatic";
+        easyQuestions[9][4] = "ximmutable";
+
+        easyQuestions[10][0] = "What symbol is used to enclose a block of code?";
+        easyQuestions[10][1] = "y{}";
+        easyQuestions[10][2] = "x[]";
+        easyQuestions[10][3] = "x()";
+        easyQuestions[10][4] = "x<>";
+
+        easyQuestions[11][0] = "What is the default value of an int in Java?";
+        easyQuestions[11][1] = "y0";
+        easyQuestions[11][2] = "xnull";
+        easyQuestions[11][3] = "x-1";
+        easyQuestions[11][4] = "x1";
+
+        easyQuestions[12][0] = "What does the char datatype represent?";
+        easyQuestions[12][1] = "yA single character";
+        easyQuestions[12][2] = "xA string";
+        easyQuestions[12][3] = "xA boolean value";
+        easyQuestions[12][4] = "xA number";
+
+        easyQuestions[13][0] = "What is the purpose of the break keyword?";
+        easyQuestions[13][1] = "yTo exit a loop or switch statement";
+        easyQuestions[13][2] = "xTo pause a program";
+        easyQuestions[13][3] = "xTo skip an iteration";
+        easyQuestions[13][4] = "xTo stop the program execution";
+
+        easyQuestions[14][0] = "What is the default value of a String in Java?";
+        easyQuestions[14][1] = "ynull";
+        easyQuestions[14][2] = "x\"\"";
+        easyQuestions[14][3] = "xundefined";
+        easyQuestions[14][4] = "x0";
+
+        easyQuestions[15][0] = "What does System.out.print() do?";
+        easyQuestions[15][1] = "yPrints text without a newline";
+        easyQuestions[15][2] = "xPrints text with a newline";
+        easyQuestions[15][3] = "xClears the screen";
+        easyQuestions[15][4] = "xStops the program";
+
+        easyQuestions[16][0] = "What will System.out.println(\"Hello\" + \" World\"); display?";
+        easyQuestions[16][1] = "yHello World";
+        easyQuestions[16][2] = "xHelloWorld";
+        easyQuestions[16][3] = "xHello + World";
+        easyQuestions[16][4] = "xHello \"World\"";
+
+        easyQuestions[17][0] = "Which of the following is a valid comment in Java?";
+        easyQuestions[17][1] = "y// This is a comment";
+        easyQuestions[17][2] = "x/ This is a comment";
+        easyQuestions[17][3] = "x# This is a comment";
+        easyQuestions[17][4] = "x. This is a comment";
+
+        easyQuestions[18][0] = "What is the index of the first element in an array in Java?";
+        easyQuestions[18][1] = "y0";
+        easyQuestions[18][2] = "x1";
+        easyQuestions[18][3] = "x-1";
+        easyQuestions[18][4] = "xNone";
+
+        easyQuestions[19][0] = "What is the function of the void keyword in Java?";
+        easyQuestions[19][1] = "yIt specifies that a method does not return a value.";
+        easyQuestions[19][2] = "xIt declares a variable as null.";
+        easyQuestions[19][3] = "xIt is used to initialize an object.";
+        easyQuestions[19][4] = "xIt specifies the end of a method.";
+
+        //medium questions
+        mediumQuestions[0][0] = "What does the Math.random() method return?";
+        mediumQuestions[0][1] = "yA number between 0.0 and 1.0";
+        mediumQuestions[0][2] = "xA random integer";
+        mediumQuestions[0][3] = "xA random boolean";
+        mediumQuestions[0][4] = "xA random string";
+
+        mediumQuestions[1][0] = "What will System.out.printf(\"%3d\", 7); display?";
+        mediumQuestions[1][1] = "y7";
+        mediumQuestions[1][2] = "x007";
+        mediumQuestions[1][3] = "x700";
+        mediumQuestions[1][4] = "x000";
+
+        mediumQuestions[2][0] = "Which loop is guaranteed to execute at least once?";
+        mediumQuestions[2][1] = "ydo-while";
+        mediumQuestions[2][2] = "xfor";
+        mediumQuestions[2][3] = "xwhile";
+        mediumQuestions[2][4] = "xforeach";
+
+        mediumQuestions[3][0] = "Which method converts a string to lowercase in Java?";
+        mediumQuestions[3][1] = "y.toLowerCase()";
+        mediumQuestions[3][2] = "x.toUpperCase()";
+        mediumQuestions[3][3] = "x.lowercase()";
+        mediumQuestions[3][4] = "x.tolower()";
+
+        mediumQuestions[4][0] = "What is the length of the string \"Java Programming\"?";
+        mediumQuestions[4][1] = "y16";
+        mediumQuestions[4][2] = "x17";
+        mediumQuestions[4][3] = "x15";
+        mediumQuestions[4][4] = "x14";
+
+        mediumQuestions[5][0] = "What is the primary advantage of using a switch statement over multiple if-else conditions?";
+        mediumQuestions[5][1] = "yAll of the above";
+        mediumQuestions[5][2] = "xEasier readability and maintenance";
+        mediumQuestions[5][3] = "xFaster execution";
+        mediumQuestions[5][4] = "xFewer lines of code";
+
+        mediumQuestions[6][0] = "What happens if you call nextLine() after nextInt() in Java's Scanner class?";
+        mediumQuestions[6][1] = "yIt skips the input due to a newline character left in the buffer";
+        mediumQuestions[6][2] = "xIt throws an exception";
+        mediumQuestions[6][3] = "xIt reads the next integer";
+        mediumQuestions[6][4] = "xIt concatenates the previous input";
+
+        mediumQuestions[7][0] = "What does the method length() return for an array in Java?";
+        mediumQuestions[7][1] = "yThe number of elements in the array";
+        mediumQuestions[7][2] = "xThe index of the last element in the array";
+        mediumQuestions[7][3] = "xThe total memory allocated for the array";
+        mediumQuestions[7][4] = "xNone of the above";
+
+        mediumQuestions[8][0] = "How is a do-while loop different from a while loop?";
+        mediumQuestions[8][1] = "yA do-while loop executes the block at least once";
+        mediumQuestions[8][2] = "xA do-while loop is faster";
+        mediumQuestions[8][3] = "xA while loop is more concise";
+        mediumQuestions[8][4] = "xA while loop cannot handle conditions";
+
+        mediumQuestions[9][0] = "What will Math.ceil(4.2) return?";
+        mediumQuestions[9][1] = "y5.0";
+        mediumQuestions[9][2] = "x4.0";
+        mediumQuestions[9][3] = "x4.2";
+        mediumQuestions[9][4] = "xNone";
+
+        mediumQuestions[10][0] = "What does the trim() method do for strings in Java?";
+        mediumQuestions[10][1] = "yRemoves leading and trailing whitespace";
+        mediumQuestions[10][2] = "xConverts a string to lowercase";
+        mediumQuestions[10][3] = "xRemoves spaces from the entire string";
+        mediumQuestions[10][4] = "xSplits the string into parts";
+
+        mediumQuestions[11][0] = "How do you declare a one-dimensional array in Java?";
+        mediumQuestions[11][1] = "yint[] arr = new int[10];";
+        mediumQuestions[11][2] = "xint arr = new int[];";
+        mediumQuestions[11][3] = "xint arr = int[10];";
+        mediumQuestions[11][4] = "xarray int arr = [10];";
+
+        mediumQuestions[12][0] = "What does System.out.printf(\"%05d\", 7); display?";
+        mediumQuestions[12][1] = "y00007";
+        mediumQuestions[12][2] = "x7";
+        mediumQuestions[12][3] = "x7.0000";
+        mediumQuestions[12][4] = "x70000";
+
+        mediumQuestions[13][0] = "What does the equals() method do for strings in Java?";
+        mediumQuestions[13][1] = "yCompares the content of two strings";
+        mediumQuestions[13][2] = "xChecks if two strings have the same reference";
+        mediumQuestions[13][3] = "xConverts the string to lowercase";
+        mediumQuestions[13][4] = "xSplits the string into parts";
+
+        mediumQuestions[14][0] = "What happens when you use break inside a nested loop?";
+        mediumQuestions[14][1] = "yIt exits the innermost loop";
+        mediumQuestions[14][2] = "xIt exits all loops";
+        mediumQuestions[14][3] = "xIt pauses the loop";
+        mediumQuestions[14][4] = "xIt skips the next iteration";
+
+        mediumQuestions[15][0] = "What is the result of 10 / 3 in Java when both operands are integers?";
+        mediumQuestions[15][1] = "y3";
+        mediumQuestions[15][2] = "x3.3333";
+        mediumQuestions[15][3] = "x10.0";
+        mediumQuestions[15][4] = "xException";
+
+        mediumQuestions[16][0] = "What does the toUpperCase() method do in Java?";
+        mediumQuestions[16][1] = "yConverts all characters in a string to uppercase";
+        mediumQuestions[16][2] = "xReverses a string";
+        mediumQuestions[16][3] = "xRemoves uppercase characters";
+        mediumQuestions[16][4] = "xRemoves spaces";
+
+        mediumQuestions[17][0] = "Which method is used to find the index of a character in a string?";
+        mediumQuestions[17][1] = "yindexOf()";
+        mediumQuestions[17][2] = "xcharAt()";
+        mediumQuestions[17][3] = "xlength()";
+        mediumQuestions[17][4] = "xsubstring()";
+
+        mediumQuestions[18][0] = "How do you declare a variable x that can store decimal values?";
+        mediumQuestions[18][1] = "ydouble x;";
+        mediumQuestions[18][2] = "xint x;";
+        mediumQuestions[18][3] = "xboolean x;";
+        mediumQuestions[18][4] = "xchar x;";
+
+        mediumQuestions[19][0] = "Which method is used to retrieve the length of a string in Java?";
+        mediumQuestions[19][1] = "y.length()";
+        mediumQuestions[19][2] = "x.size()";
+        mediumQuestions[19][3] = "x.getLength()";
+        mediumQuestions[19][4] = "x.count()";
+
+        //hard questions
+        hardQuestions[0][0] = "How do you create a 2D array in Java?";
+        hardQuestions[0][1] = "yint[][] array = new int[3][3];";
+        hardQuestions[0][2] = "xint array = [3][3];";
+        hardQuestions[0][3] = "xint[][] array = new int[3,3];";
+        hardQuestions[0][4] = "xint array[][] = {3,3};";
+
+        hardQuestions[1][0] = "Which keyword is used to terminate a loop prematurely in Java?";
+        hardQuestions[1][1] = "ybreak";
+        hardQuestions[1][2] = "xcontinue";
+        hardQuestions[1][3] = "xreturn";
+        hardQuestions[1][4] = "xexit";
+
+        hardQuestions[2][0] = "What does compareTo return if two strings are equal?";
+        hardQuestions[2][1] = "y0";
+        hardQuestions[2][2] = "x1";
+        hardQuestions[2][3] = "x-1";
+        hardQuestions[2][4] = "xnulll";
+
+        hardQuestions[3][0] = "What happens if you access an index outside of an array’s bounds in Java?";
+        hardQuestions[3][1] = "yArrayIndexOutOfBoundsException";
+        hardQuestions[3][2] = "xNullPointerException";
+        hardQuestions[3][3] = "xClassCastException";
+        hardQuestions[3][4] = "xIllegalArgumentException";
+
+        hardQuestions[4][0] = "What is the maximum value of a byte in Java?";
+        hardQuestions[4][1] = "y127";
+        hardQuestions[4][2] = "x128";
+        hardQuestions[4][3] = "x255";
+        hardQuestions[4][4] = "x256";
+
+        hardQuestions[5][0] = "Which method in the Math class is used to calculate the square root of a number?";
+        hardQuestions[5][1] = "yMath.sqrt()";
+        hardQuestions[5][2] = "xMath.square()";
+        hardQuestions[5][3] = "xMath.pow(,0.5)";
+        hardQuestions[5][4] = "xMath.calcRoot()";
+
+        hardQuestions[6][0] = "What is the output of Math.ceil(-4.7) in Java?";
+        hardQuestions[6][1] = "y-4.0";
+        hardQuestions[6][2] = "x-5.0";
+        hardQuestions[6][3] = "x4.7";
+        hardQuestions[6][4] = "x-4.7";
+
+        hardQuestions[7][0] = "System.out.printf(\"%8.2f\", 123.4567);";
+        hardQuestions[7][1] = "y123.46";
+        hardQuestions[7][2] = "x123.4567";
+        hardQuestions[7][3] = "x123.456";
+        hardQuestions[7][4] = "x23.46";
+
+        hardQuestions[8][0] = "What does the replaceAll() method do in Java?";
+        hardQuestions[8][1] = "yReplaces all occurrences of a substring matching a regular expression";
+        hardQuestions[8][2] = "xReplaces the first occurrence of a substring";
+        hardQuestions[8][3] = "xRemoves all instances of a character";
+        hardQuestions[8][4] = "xSplits the string into parts";
+
+        hardQuestions[9][0] = "Which of the following generates a random integer between 1 and 10 in Java?";
+        hardQuestions[9][1] = "y(int)(Math.random() * 10) + 1";
+        hardQuestions[9][2] = "x(int)(Math.random() * 9) + 1";
+        hardQuestions[9][3] = "xMath.random() * 10";
+        hardQuestions[9][4] = "x(int)(Math.random() + 10)";
+
+        hardQuestions[10][0] = "What is the purpose of the compareTo() method in Java?";
+        hardQuestions[10][1] = "yCompares two strings lexicographically";
+        hardQuestions[10][2] = "xChecks for equality between two strings";
+        hardQuestions[10][3] = "xCompares string length";
+        hardQuestions[10][4] = "xReverses the string order";
+
+        hardQuestions[11][0] = "Which data type has a range of values from -128 to 127 in Java?";
+        hardQuestions[11][1] = "ybyte";
+        hardQuestions[11][2] = "xint";
+        hardQuestions[11][3] = "xshort";
+        hardQuestions[11][4] = "xlong";
+
+        hardQuestions[12][0] = "What happens if the default case is omitted in a switch statement?";
+        hardQuestions[12][1] = "yNothing happens; the program continues normally";
+        hardQuestions[12][2] = "xAn error occurs";
+        hardQuestions[12][3] = "xThe last case is executed";
+        hardQuestions[12][4] = "xThe program terminates";
+
+        hardQuestions[13][0] = "What is the maximum size of a string in Java?";
+        hardQuestions[13][1] = "yApproximately 2 billion characters (2^31-1)";
+        hardQuestions[13][2] = "x1 billion characters";
+        hardQuestions[13][3] = "xNo limit";
+        hardQuestions[13][4] = "x65535 characters";
+
+        hardQuestions[14][0] = "What does System.out.print(\"\\f\") do?";
+        hardQuestions[14][1] = "yClears the terminal window";
+        hardQuestions[14][2] = "xAdds a tab space";
+        hardQuestions[14][3] = "xOutputs \\f";
+        hardQuestions[14][4] = "xOutputs nothing";
+
+        hardQuestions[15][0] = "What is the output of Math.floor(7.8)?";
+        hardQuestions[15][1] = "y7.0";
+        hardQuestions[15][2] = "x7.8";
+        hardQuestions[15][3] = "x8.0";
+        hardQuestions[15][4] = "x0.8";
+
+        hardQuestions[16][0] = "Which method converts a character to uppercase in Java?";
+        hardQuestions[16][1] = "yCharacter.toUpperCase()";
+        hardQuestions[16][2] = "xtoUpperCase()";
+        hardQuestions[16][3] = "xString.toUpperCase()";
+        hardQuestions[16][4] = "xchar.upper()";
+
+        hardQuestions[17][0] = "What does System.out.printf(\"%d\", Math.pow(2,3)); output?";
+        hardQuestions[17][1] = "yCompile-time error";
+        hardQuestions[17][2] = "x8.0";
+        hardQuestions[17][3] = "x8";
+        hardQuestions[17][4] = "xNaN";
+
+        hardQuestions[18][0] = "How do you compare two strings ignoring case in Java?";
+        hardQuestions[18][1] = "yequalsIgnoreCase()";
+        hardQuestions[18][2] = "xcompareTo()";
+        hardQuestions[18][3] = "xequals()";
+        hardQuestions[18][4] = "xcompareIgnoreCase()";
+
+        hardQuestions[19][0] = "What is the result of Math.min(5, 10)?";
+        hardQuestions[19][1] = "y5";
+        hardQuestions[19][2] = "x10";
+        hardQuestions[19][3] = "x0";
+        hardQuestions[19][4] = "x5";
+
+    }
+
+    public static boolean battle(Scanner scanner) {
+        //default enemy health
+        int enemyHealth = 30;
+
+        //while the enemy or the player is not dead
+        while (enemyHealth > 0 && playerHealth > 0) {
+            System.out.println("Enemy HP: " + enemyHealth);
+            System.out.println("Answer a question to attack!");
+
+            //outputing what happened
+            if (!askQuestion(scanner)) {
+                System.out.println("You answered incorrectly and failed to attack!");
+            } else {
+                System.out.println("Correct! You attack the enemy!");
+                enemyHealth -= weaponDamage;
+                System.out.println("You dealt " + weaponDamage + " damage!");
+            }
+
+            //damaging the player
+            if (enemyHealth > 0) {
+                playerHealth -= 5;
+                System.out.println("The enemy dealt 5 damage!");
+            }
+        }
+
+        if (playerHealth <= 0) return false;
+
+        System.out.println("You defeated the enemy!");
+        playerExp += random.nextInt(50) + 20;
+        playerCurrency += random.nextInt(50) + 10;
+        scanner.nextLine();
+        return true;
+    }
+
+    public static boolean askQuestion(Scanner scanner) {
+        //indicates that the game ended as no more questions were left.
+        if (!infiniteQuestions && questionCount <= 0) {
+            System.out.println("No more questions left!");
+            scanner.nextLine();
+            return true;
+        }
+
+        //setting up the questions
+        String[][] questions = selectedDifficulties.get(random.nextInt(selectedDifficulties.size()));
+        int questionIndex = random.nextInt(20);
+
+        List<String> options = Arrays.asList(
+                questions[questionIndex][1],
+                questions[questionIndex][2],
+                questions[questionIndex][3],
+                questions[questionIndex][4]
+            );
+        Collections.shuffle(options);
+
+        //printing the questions
+        System.out.println("Question: " + questions[questionIndex][0]);
+        for (int i = 0; i < options.size(); i++) {
+            System.out.println((i + 1) + ". " + options.get(i).substring(1));
+        }
+        System.out.print("Your answer (1-4): ");
+        int answer = scanner.nextInt();
+
+        if (!infiniteQuestions) questionCount--;
+
+        return options.get(answer - 1).charAt(0) == 'y';
+    }
+
+    public static void displayMap() {
+        //printing the map
+        for (int i = 0; i < MAP_SIZE; i++) {
+            for (int j = 0; j < MAP_SIZE; j++) {
+                if (i == playerX && j == playerY) {
+                    System.out.print("P ");
+                } else {
+                    System.out.print(map[i][j] + " ");
+                }
+            }
+            System.out.println();
+        }
+    }
+
+    public static boolean movePlayer(char direction) {
+        //creates a new position before moving
+        int newX = playerX;
+        int newY = playerY;
+
+        //changing the location based on what key was pressed
+        switch (direction) {
+            case 'W': newX--; break;
+            case 'A': newY--; break;
+            case 'S': newX++; break;
+            case 'D': newY++; break;
+            default: return false;
+        }
+
+        if (newX < 0 || newY < 0 || newX >= MAP_SIZE || newY >= MAP_SIZE || map[newX][newY] == '#') {
+            return false;
+        }
+
+        map[playerX][playerY] = '.';
+        playerX = newX;
+        playerY = newY;
+        return true;
+    }
+
+    public static void placeEnemies() {
+        //Randomly placing the many enemies anywhere on the map according to the variable map size
+        for (int i = 0; i < 50; i++) {
+            int x, y;
+            do {
+                x = random.nextInt(MAP_SIZE);
+                y = random.nextInt(MAP_SIZE);
+            } while (map[x][y] != '.');
+            map[x][y] = 'E';
+        }
+    }
+
+    public static void placeShops() {
+        //Randomly placing the multiple shops anywhere on the map according to the variable map size
+        for (int i = 0; i < 10; i++) {
+            int x, y;
+            do {
+                x = random.nextInt(MAP_SIZE);
+                y = random.nextInt(MAP_SIZE);
+            } while (map[x][y] != '.');
+            map[x][y] = 'S';
+        }
+    }
+
+    public static void placeFinalBoss() {
+        //Randomly placing the final boss anywhere on the map according to the variable map size
+        int x, y;
+        do {
+            x = random.nextInt(MAP_SIZE);
+            y = random.nextInt(MAP_SIZE);
+        } while (map[x][y] != '.');
+        map[x][y] = 'B';
+    }
+
+    public static void clearScreen() {
+        //clear the screen by printing many empty lines
+        for (int i = 0; i < 50; i++) {
+            System.out.println();
+        }
+    }
+
+    public static void pause() {
+        //pause for a set amount of time
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    public static void shop(Scanner scanner) {
+        //upgrades to health and damage here
+        System.out.println("Welcome to the shop!");
+        System.out.println("1. Buy Potion (50 currency) | 2. Upgrade Weapon (100 currency) | 3. Exit");
+        System.out.print("Choose an option: ");
+        int choice = scanner.nextInt();
+
+        if (choice == 1 && playerCurrency >= 50) {
+            //decrease currency and increase health
+            playerCurrency -= 50;
+            playerHealth += 30;
+            System.out.println("You bought a potion! Health increased by 30.");
+            scanner.nextLine();
+        } else if (choice == 2 && playerCurrency >= 100) {
+            //decrease currency and increase damage
+            playerCurrency -= 100;
+            weaponDamage += 5;
+            System.out.println("You upgraded your weapon! Damage increased.");
+            scanner.nextLine();
+        } else if (choice == 3) {
+            //exit message
+            System.out.println("Thank you for visiting!");
+            scanner.nextLine();
+        } else {
+            //if first two cases fail, insufficient currency therefore exit.
+            System.out.println("You don't have enough currency.");
+            scanner.nextLine();
+        }
+    }
+
+    public static boolean finalBossBattle(Scanner scanner) {
+        // the bosses health
+        int bossHealth = 200;
+
+        while (bossHealth > 0 && playerHealth > 0) {
+            //your choice of action
+            System.out.println("Boss HP: " + bossHealth);
+            System.out.println("1. Attack | 2. Run");
+            System.out.print("Choose an action: ");
+            int choice = scanner.nextInt();
+
+            if (choice == 1) {
+                //the actual boss sequence, your damage, and the bosses damage.
+                bossHealth -= weaponDamage;
+                System.out.println("You dealt " + weaponDamage + " damage!");
+                scanner.nextLine();
+                if (bossHealth > 0) {
+                    int damage = random.nextInt(20) + 10;
+                    playerHealth -= damage;
+                    System.out.println("The boss dealt " + damage + " damage!");
+                    scanner.nextLine();
+                }
+            } else if (choice == 2) {
+                //you cant escape this, nice try
+                System.out.println("You cannot run from the boss!");
+                scanner.nextLine();
+            }
+        }
+
+        return playerHealth > 0;
+    }
+
+    public static void checkLevelUp() {
+        //if current Exp level is over 100 increase the level 
+        if (playerExp >= 100) {
+            //increase level
+            playerLevel++;
+            //reset exp value
+            playerExp -= 100;
+            playerHealth += 20;
+            System.out.println("Level up! You're now level " + playerLevel + "!");
+            //Just pauses for 2 seconds
+            pause();
+            pause();
+        }
+    }
+
+    public static void displayWelcome() {
+        //Introduction to the game
+        System.out.println("Welcome to the RPG Quiz Game!");
+        System.out.println("Explore the map, fight enemies, answer questions, level up, and defeat the final boss!");
+        System.out.println("Good luck!");
+
+        //Just pauses for 2 seconds
+        pause();
+        pause();
+    }
+}
+
